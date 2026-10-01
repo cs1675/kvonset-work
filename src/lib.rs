@@ -8,6 +8,9 @@
 //! It is possible to access the underlying iterators directly (e.g., for testing, or if you wish
 //! to not use the `Iterator` trait: [`WarmUpPutRequests`] and [`MixedWorkload`].
 
+#[cfg(feature = "argparse")]
+pub mod args;
+
 use rand::rngs::SmallRng;
 use rand::{Rng, RngExt, SeedableRng};
 use rand_distr::Zipf;

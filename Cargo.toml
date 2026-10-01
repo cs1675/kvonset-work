@@ -3,7 +3,11 @@ name = "kvonset-work"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+argparse = ["clap"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 rand = "0.10"
 rand_distr = "0.6"
+clap = { version = "4", features = ["derive"], optional = true }
