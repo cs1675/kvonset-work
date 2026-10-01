@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use kvonset_work::{MixedWorkload, Request, WarmUpPutRequests};
+use super::{MixedWorkload, Request, WarmUpPutRequests};
 
 const KEY_SPACE: u16 = 1024;
 const SEED: u64 = 1675;
