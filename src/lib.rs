@@ -1,14 +1,39 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+//! kvonset-work: Express a key-value workload.
+//!
+//! The client sends [`Request`]s, and the server responds with [`Response`]s.
+
+#[cfg(feature = "argparse")]
+pub mod args;
+
+#[cfg(feature = "request-gen")]
+pub mod request_gen;
+
+use serde::*;
+
+/// A KVonset request.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum Request {
+    /// For local testing only.
+    Ping,
+    /// A list of (key, value) tuples to set.
+    ///
+    /// To delete a key, use key <- None.
+    Mput(Vec<(u16, Option<[u8; 8]>)>),
+    /// A list of keys to fetch.
+    Mget(Vec<u16>),
+    /// A range of keys to fetch.
+    Range { start: u16, end: u16 },
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+/// A KVonset response.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum Response {
+    /// For local testing only.
+    Ping,
+    /// A list of set keys and their previously set values.
+    Mput(Vec<(u16, Option<[u8; 8]>)>),
+    /// Currently set values for the given keys.
+    Mget(Vec<(u16, Option<[u8; 8]>)>),
+    /// A list of set keys and their currently set values.
+    Range(Vec<(u16, [u8; 8])>),
 }

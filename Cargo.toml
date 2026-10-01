@@ -3,4 +3,12 @@ name = "kvonset-work"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+argparse = ["clap"]
+request-gen = ["rand", "rand_distr"]
+
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+rand = { version = "0.10", optional = true }
+rand_distr = { version = "0.6", optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
