@@ -110,6 +110,15 @@ impl Default for MixedWorkload {
     }
 }
 
+/// The number of requests per 256 requests that should be [`Request::Range`].
+pub const RANGE: u8 = 4;
+/// The number of requests per 256 requests that should be [`Request::Mput`].
+pub const PUT: u8 = 32;
+/// The number of requests per 256 requests that should be [`Request::Mget`].
+pub const GET: u8 = (u8::MAX - u8::MIN) - RANGE - PUT + 1;
+/// Number of possible keys
+pub const KEYSPACE: u16 = 1024;
+
 impl MixedWorkload {
     pub fn new(seed: Option<u64>) -> Self {
         Self::new_with_rng(
@@ -120,14 +129,14 @@ impl MixedWorkload {
 
     pub fn new_with_rng(rng: SmallRng) -> Self {
         Self {
-            key_distr: Zipf::new(1024.0, 1.).expect("unable to initialize Zipf distribution"),
+            key_distr: Zipf::new(KEYSPACE as _, 1.).expect("unable to initialize Zipf distribution"),
             rng,
         }
     }
 
     /// Make a `Request`.
     ///
-    /// The workload is for a keyspace of size 1024.
+    /// The workload is for a keyspace of size [`KEYSPACE`].
     /// Each key in a request is Zipf distributed in the keyspace.
     ///
     /// There are three types of requests:
@@ -135,8 +144,6 @@ impl MixedWorkload {
     /// - Mput (32 / 256) and Mget (rest): Generate a `StandardGeometric`-distributed number of items per request.
     pub fn gen_request(&mut self) -> Request {
         let req_type: u8 = self.rng.random();
-        const RANGE: u8 = 4;
-        const PUT: u8 = 32;
 
         if req_type < RANGE {
             // range
@@ -152,7 +159,7 @@ impl MixedWorkload {
             // +1: `StandardGeometric` is the number of failed coin flips before a success, which could be 0. Add 1 to have at least one request.
             let items = StandardGeometric.sample(&mut self.rng) + 1;
             let key_distr = self.key_distr;
-            // -1: `Zipf` generates [1, 1024] and we want [0, 1023].
+            // -1: `Zipf` generates [1, KEYSPACE] and we want [0, KEYSPACE -1].
             let sample_key = |rng: &mut SmallRng| rng.sample(key_distr) as u16 - 1;
             if req_type < const { RANGE + PUT } {
                 Request::Mput(

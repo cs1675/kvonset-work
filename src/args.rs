@@ -26,10 +26,72 @@ pub struct KVonsetClientOpt {
     #[arg(short, long)]
     pub port: u16,
 
+    /// Attempted load to offer, in keys / second
+    #[arg(short, long)]
+    pub load_keys_attempted: u64,
+
     /// Only files written to this directory will be preserved; the runner script will delete all
     /// other files.
     #[arg(short, long)]
     pub outpath: PathBuf,
+}
+
+#[cfg(feature = "request-gen")]
+impl KVonsetClientOpt {
+    /// Calculate a target inter-arrival time
+    /// given the provided number of keys per second of attempted load.
+    ///
+    /// The mixed workload averages ~7.3 keys / request
+    /// (see `request_gen::test_workload::mixed_workload_distribution`), so at an attempted load of
+    /// 10,000 keys / second, requests should be sent ~730µs apart.
+    ///
+    /// ```rust
+    /// use clap::Parser;
+    /// use kvonset_work::args::KVonsetClientOpt;
+    ///
+    /// let opt = |load: &str| {
+    ///     KVonsetClientOpt::parse_from([
+    ///         "client", "-r", "10", "--ip", "127.0.0.1", "-p", "4242", "-o", "out", "-l", load,
+    ///     ])
+    /// };
+    ///
+    /// // 2 keys / mget or mput * (252 / 256) + (1024 / 3) keys / range * (4 / 256)
+    /// let keys_per_req = 2. * 252. / 256. + (1024. / 3.) * 4. / 256.;
+    /// assert!((keys_per_req - 7.3_f64).abs() < 0.01);
+    ///
+    /// let got = opt("10000").target_interarrival().as_secs_f64();
+    /// assert!((got - keys_per_req / 10_000.).abs() < 1e-9, "got {got}");
+    ///
+    /// // Doubling the attempted load halves the inter-arrival time.
+    /// let doubled = opt("20000").target_interarrival().as_secs_f64();
+    /// assert!((doubled - got / 2.).abs() < 1e-9, "got {doubled}");
+    /// ```
+    pub fn target_interarrival(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f64(
+            // First calculate the number of keys / request
+            const {
+                use crate::request_gen::{GET, KEYSPACE, PUT, RANGE};
+                // Why `2. *`?: The mean of a StandardGeometric distribution,
+                //   which determines Mget and Mput request size, is 2.
+                2. * (GET as f64 + PUT as f64)
+                  / (u8::MAX as f64 + 1.)
+                // Why `/ 3`?: The mean of the absolute difference of two
+                //   values in KEYSPACE generated uniformly at random
+                //   is a Triangular(a, b, c) distribution with mode c = 0,
+                //   which has mean (a - b) / 3.
+                + (KEYSPACE as f64 / 3.)
+                      * RANGE as f64
+                      / (u8::MAX as f64 + 1.)
+            }
+            // Why `/ self.load_keys_attempted`?: The above part calculates
+            //   the average number of keys / request.
+            //    seconds      key     seconds     key       key
+            //    ------- =  ------- * ------- = ------- / -------
+            //    request    request     key     request   seconds
+            //   `self.load_keys_attempted` is key / second, so its inverse is seconds / key
+            / self.load_keys_attempted as f64,
+        )
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -84,6 +146,8 @@ mod t {
         "10.0.0.1",
         "--port",
         "4242",
+        "--load-keys-attempted",
+        "10000",
         "--outpath",
         "out.data",
     ];
@@ -143,18 +207,21 @@ mod t {
         assert_eq!(opt.runtime_secs, 10);
         assert_eq!(opt.ip, Ipv4Addr::new(10, 0, 0, 1));
         assert_eq!(opt.port, 4242);
+        assert_eq!(opt.load_keys_attempted, 10000);
         assert_eq!(opt.outpath, PathBuf::from("out.data"));
     }
 
     #[test]
     fn client_short_flags() {
-        let opt =
-            KVonsetClientOpt::try_parse_from(["client", "-r", "5", "--ip", "127.0.0.1", "-p", "8080", "-o", "x.out"])
-                .expect("parse client");
+        let opt = KVonsetClientOpt::try_parse_from([
+            "client", "-r", "5", "--ip", "127.0.0.1", "-p", "8080", "-l", "500", "-o", "x.out",
+        ])
+        .expect("parse client");
 
         assert_eq!(opt.runtime_secs, 5);
         assert_eq!(opt.ip, Ipv4Addr::LOCALHOST);
         assert_eq!(opt.port, 8080);
+        assert_eq!(opt.load_keys_attempted, 500);
         assert_eq!(opt.outpath, PathBuf::from("x.out"));
     }
 
