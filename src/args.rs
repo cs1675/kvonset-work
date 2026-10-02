@@ -127,12 +127,8 @@ pub enum Strategy {
     VectoredIO,
     /// Use `io_uring`.
     IoUring,
-    /// Target the latency-focused SLO.
-    LatencySLO,
-    /// Target the throughput-focused SLO.
-    ThroughputSLO,
-    /// (Optional) Target a submission to the class leaderboard.
-    Leaderboard,
+    /// Optimize for highest throughput at the lowest latency
+    Optimized,
 }
 
 #[cfg(test)]
@@ -309,9 +305,7 @@ mod t {
         assert!(matches!(parse("send-recv"), Strategy::SendRecv));
         assert!(matches!(parse("vectored-io"), Strategy::VectoredIO));
         assert!(matches!(parse("io-uring"), Strategy::IoUring));
-        assert!(matches!(parse("latency-slo"), Strategy::LatencySLO));
-        assert!(matches!(parse("throughput-slo"), Strategy::ThroughputSLO));
-        assert!(matches!(parse("leaderboard"), Strategy::Leaderboard));
+        assert!(matches!(parse("optimized"), Strategy::Optimized));
     }
 
     #[test]
