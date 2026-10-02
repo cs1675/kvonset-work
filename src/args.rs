@@ -26,6 +26,10 @@ pub struct KVonsetClientOpt {
     #[arg(short, long)]
     pub port: u16,
 
+    /// PRNG seed to pass to [`GenerateRequests`]
+    #[arg(short, long)]
+    pub seed: Option<u64>,
+
     /// Attempted load to offer, in keys / second
     #[arg(short, long)]
     pub load_keys_attempted: u64,
@@ -214,7 +218,17 @@ mod t {
     #[test]
     fn client_short_flags() {
         let opt = KVonsetClientOpt::try_parse_from([
-            "client", "-r", "5", "--ip", "127.0.0.1", "-p", "8080", "-l", "500", "-o", "x.out",
+            "client",
+            "-r",
+            "5",
+            "--ip",
+            "127.0.0.1",
+            "-p",
+            "8080",
+            "-l",
+            "500",
+            "-o",
+            "x.out",
         ])
         .expect("parse client");
 

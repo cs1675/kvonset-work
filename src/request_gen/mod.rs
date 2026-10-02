@@ -9,6 +9,9 @@
 //! It is possible to access the underlying iterators directly (e.g., for testing, or if you wish
 //! to not use the `Iterator` trait: [`WarmUpPutRequests`] and [`MixedWorkload`].
 
+use std::iter::FusedIterator;
+use std::ops::{Deref, DerefMut};
+
 use crate::Request;
 use rand::rngs::SmallRng;
 use rand::{Rng, RngExt, SeedableRng};
@@ -22,6 +25,11 @@ use rand_distr::{Distribution, StandardGeometric};
 ///   write a value to each of the 1,024 keys to warm up the server.
 /// - [`GenerateRequests::mixed_workload`]:
 ///   generate a mix of range (4 / 256), put (32 / 256), and get queries (rest).
+///
+/// To help constrain nondeterminism, it is possible to pass a `seed` to
+/// [`GenerateRequests::new`].
+/// This will initialize a single PRNG, which both
+/// `warmup_puts` and `mixed_workload` will use.
 pub struct GenerateRequests {
     rng: SmallRng,
 }
@@ -33,6 +41,9 @@ impl Default for GenerateRequests {
 }
 
 impl GenerateRequests {
+    /// Create a new `GenerateRequests`.
+    ///
+    /// `seed`: Optionally pass in a fixed seed.
     pub fn new(seed: Option<u64>) -> Self {
         Self::new_with_rng(
             seed.and_then(|s| Some(SmallRng::seed_from_u64(s)))
@@ -46,12 +57,37 @@ impl GenerateRequests {
 
     /// Return an iterator which will fill the key space with PUTs.
     pub fn warmup_puts(&mut self) -> impl Iterator<Item = Request> {
-        WarmUpPutRequests::new_with_rng(self.rng.clone())
+        WarmUpPutRequests::new_with_rng(RngHolder::Borrowed(&mut self.rng))
     }
 
     /// Return an iterator which generates an infinite stream of mixed workload requests.
-    pub fn mixed_workload(&self) -> impl Iterator<Item = Request> {
-        MixedWorkload::new_with_rng(self.rng.clone())
+    pub fn mixed_workload(&mut self) -> impl Iterator<Item = Request> {
+        MixedWorkload::new_with_rng(RngHolder::Borrowed(&mut self.rng))
+    }
+}
+
+// similar to `std::borrow::Cow`, but instead of cloning on write we just have a &mut
+enum RngHolder<'r> {
+    Borrowed(&'r mut SmallRng),
+    Owned(SmallRng),
+}
+
+impl<'r> Deref for RngHolder<'r> {
+    type Target = SmallRng;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            RngHolder::Borrowed(v) => v,
+            RngHolder::Owned(v) => v,
+        }
+    }
+}
+
+impl<'r> DerefMut for RngHolder<'r> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            RngHolder::Borrowed(v) => v,
+            RngHolder::Owned(v) => v,
+        }
     }
 }
 
@@ -59,20 +95,30 @@ impl GenerateRequests {
 ///
 /// Iterator generates 32 `mput` requests, each with 32 keys and values.
 /// In total, each of the 1,024 keys in the key space will get written.
-pub struct WarmUpPutRequests {
+///
+/// After this, the iterator will always return `None`.
+pub struct WarmUpPutRequests<'a> {
     curr_req_num: u16,
-    rng: SmallRng,
+    rng: RngHolder<'a>,
 }
 
-impl WarmUpPutRequests {
+impl Default for WarmUpPutRequests<'static> {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
+impl WarmUpPutRequests<'static> {
     pub fn new(seed: Option<u64>) -> Self {
-        Self::new_with_rng(
+        Self::new_with_rng(RngHolder::Owned(
             seed.and_then(|s| Some(SmallRng::seed_from_u64(s)))
                 .unwrap_or_else(|| rand::make_rng()),
-        )
+        ))
     }
+}
 
-    pub fn new_with_rng(rng: SmallRng) -> Self {
+impl<'a> WarmUpPutRequests<'a> {
+    fn new_with_rng(rng: RngHolder<'a>) -> Self {
         Self { curr_req_num: 0, rng }
     }
 }
@@ -82,7 +128,7 @@ fn warmup_put(i: u16, rng: &mut impl Rng) -> Request {
     Request::Mput((i * 32..(i + 1) * 32).map(|i| (i, Some(rng.random()))).collect())
 }
 
-impl Iterator for WarmUpPutRequests {
+impl<'a> Iterator for WarmUpPutRequests<'a> {
     type Item = Request;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -96,15 +142,17 @@ impl Iterator for WarmUpPutRequests {
     }
 }
 
+impl<'a> FusedIterator for WarmUpPutRequests<'a> {}
+
 /// Generate a mix of range (4 / 256), put (32 / 256), and get queries (rest).
 ///
 /// The iterator will never return `None`.
-pub struct MixedWorkload {
+pub struct MixedWorkload<'r> {
     key_distr: Zipf<f64>,
-    rng: SmallRng,
+    rng: RngHolder<'r>,
 }
 
-impl Default for MixedWorkload {
+impl Default for MixedWorkload<'static> {
     fn default() -> Self {
         Self::new(None)
     }
@@ -119,15 +167,17 @@ pub const GET: u8 = (u8::MAX - u8::MIN) - RANGE - PUT + 1;
 /// Number of possible keys
 pub const KEYSPACE: u16 = 1024;
 
-impl MixedWorkload {
+impl MixedWorkload<'static> {
     pub fn new(seed: Option<u64>) -> Self {
-        Self::new_with_rng(
+        Self::new_with_rng(RngHolder::Owned(
             seed.and_then(|s| Some(SmallRng::seed_from_u64(s)))
                 .unwrap_or_else(|| rand::make_rng()),
-        )
+        ))
     }
+}
 
-    pub fn new_with_rng(rng: SmallRng) -> Self {
+impl<'r> MixedWorkload<'r> {
+    fn new_with_rng(rng: RngHolder<'r>) -> Self {
         Self {
             key_distr: Zipf::new(KEYSPACE as _, 1.).expect("unable to initialize Zipf distribution"),
             rng,
@@ -184,7 +234,7 @@ impl MixedWorkload {
     }
 }
 
-impl Iterator for MixedWorkload {
+impl<'r> Iterator for MixedWorkload<'r> {
     type Item = Request;
 
     fn next(&mut self) -> Option<Self::Item> {
