@@ -14,6 +14,9 @@ pub mod args;
 #[cfg(feature = "request-gen")]
 pub mod request_gen;
 
+#[cfg(feature = "stats")]
+pub mod stats;
+
 use serde::*;
 
 /// A KVonset request.
@@ -31,11 +34,24 @@ pub enum Request {
     Range { start: u16, end: u16 },
 }
 
+impl Request {
+    /// Number of keys the request asks for. This is what attempted load (keys / second) counts:
+    /// for a range, it is the size of the range, regardless of how many keys are set.
+    pub fn num_keys(&self) -> usize {
+        match self {
+            Request::Ping => 0,
+            Request::Mput(kvs) => kvs.len(),
+            Request::Mget(ks) => ks.len(),
+            Request::Range { start, end } => end.saturating_sub(*start) as usize + 1,
+        }
+    }
+}
+
 /// A KVonset response.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Response {
     /// For local testing only.
-    Ping,
+    Pong,
     /// A list of set keys and their previously set values.
     Mput(Vec<(u16, Option<[u8; 8]>)>),
     /// Currently set values for the given keys.

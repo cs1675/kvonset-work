@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
+stats = ["quanta", "hdrhistogram", "request-gen"]
 argparse = ["clap"]
 request-gen = ["rand", "rand_distr"]
 
@@ -12,3 +13,5 @@ serde = { version = "1", features = ["derive"] }
 rand = { version = "0.10", optional = true }
 rand_distr = { version = "0.6", optional = true }
 clap = { version = "4", features = ["derive"], optional = true }
+quanta = { version = "0.13", optional = true }
+hdrhistogram = { version = "7", optional = true }

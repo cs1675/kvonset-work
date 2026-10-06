@@ -27,6 +27,9 @@ pub struct KVonsetClientOpt {
     pub port: u16,
 
     /// PRNG seed to pass to [`GenerateRequests`]
+    ///
+    /// Note: This only determines the requests themselves, not the inter-arrival pattern.
+    /// It is neither required nor banned to use this value to seed the inter-arrival pattern.
     #[arg(short, long)]
     pub seed: Option<u64>,
 
@@ -73,20 +76,7 @@ impl KVonsetClientOpt {
     pub fn target_interarrival(&self) -> std::time::Duration {
         std::time::Duration::from_secs_f64(
             // First calculate the number of keys / request
-            const {
-                use crate::request_gen::{GET, KEYSPACE, PUT, RANGE};
-                // Why `2. *`?: The mean of a StandardGeometric distribution,
-                //   which determines Mget and Mput request size, is 2.
-                2. * (GET as f64 + PUT as f64)
-                  / (u8::MAX as f64 + 1.)
-                // Why `/ 3`?: The mean of the absolute difference of two
-                //   values in KEYSPACE generated uniformly at random
-                //   is a Triangular(a, b, c) distribution with mode c = 0,
-                //   which has mean (a - b) / 3.
-                + (KEYSPACE as f64 / 3.)
-                      * RANGE as f64
-                      / (u8::MAX as f64 + 1.)
-            }
+            crate::request_gen::MEAN_KEYS_PER_REQUEST
             // Why `/ self.load_keys_attempted`?: The above part calculates
             //   the average number of keys / request.
             //    seconds      key     seconds     key       key

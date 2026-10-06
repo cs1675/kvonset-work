@@ -167,6 +167,20 @@ pub const GET: u8 = (u8::MAX - u8::MIN) - RANGE - PUT + 1;
 /// Number of possible keys
 pub const KEYSPACE: u16 = 1024;
 
+/// The mean number of keys per request in the mixed workload (see [`Request::num_keys`]).
+pub const MEAN_KEYS_PER_REQUEST: f64 =
+    // Why `2. *`?: The mean of a StandardGeometric distribution,
+    //   which determines Mget and Mput request size, is 2.
+    2. * (GET as f64 + PUT as f64)
+      / (u8::MAX as f64 + 1.)
+    // Why `/ 3`?: The mean of the absolute difference of two
+    //   values in KEYSPACE generated uniformly at random
+    //   is a Triangular(a, b, c) distribution with mode c = 0,
+    //   which has mean (a - b) / 3.
+    + (KEYSPACE as f64 / 3.)
+          * RANGE as f64
+          / (u8::MAX as f64 + 1.);
+
 impl MixedWorkload<'static> {
     pub fn new(seed: Option<u64>) -> Self {
         Self::new_with_rng(RngHolder::Owned(
