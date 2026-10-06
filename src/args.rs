@@ -28,8 +28,9 @@ pub struct KVonsetClientOpt {
 
     /// PRNG seed to pass to [`GenerateRequests`]
     ///
-    /// Note: This only determines the requests themselves, not the inter-arrival pattern.
-    /// It is neither required nor banned to use this value to seed the inter-arrival pattern.
+    /// Note: This only determines the requests themselves,
+    /// not the inter-arrival pattern. It is neither required nor
+    /// banned to use this value to seed the inter-arrival pattern.
     #[arg(short, long)]
     pub seed: Option<u64>,
 
@@ -37,8 +38,8 @@ pub struct KVonsetClientOpt {
     #[arg(short, long)]
     pub load_keys_attempted: u64,
 
-    /// Only files written to this directory will be preserved; the runner script will delete all
-    /// other files.
+    /// Only files written to this directory will be preserved;
+    /// the runner script will delete all other files.
     #[arg(short, long)]
     pub outpath: PathBuf,
 }
@@ -48,9 +49,9 @@ impl KVonsetClientOpt {
     /// Calculate a target inter-arrival time
     /// given the provided number of keys per second of attempted load.
     ///
-    /// The mixed workload averages ~7.3 keys / request
-    /// (see `request_gen::test_workload::mixed_workload_distribution`), so at an attempted load of
-    /// 10,000 keys / second, requests should be sent ~730µs apart.
+    /// The mixed workload averages ~7.3 keys / request,
+    /// so at an attempted load of 10,000 keys / second,
+    /// requests should be sent ~730µs apart.
     ///
     /// ```rust
     /// use clap::Parser;

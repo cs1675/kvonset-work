@@ -65,6 +65,80 @@ pub struct SummaryStats {
     pub range_latency_us_hist: Vec<hdrhistogram::Histogram<u64>>,
 }
 
+impl SummaryStats {
+    /// Retrieve the given `quantile` for the given `Op` per connection,
+    /// and return the median value across connections.
+    ///
+    /// # Requirements
+    ///
+    /// - `quantile` must be between 0 and 1
+    /// - `Op` must not be `Ping`
+    ///
+    /// Otherwise, returns `None`.
+    pub fn latency_quantile_us(&self, op: Option<Op>, quantile: f64) -> Option<u64> {
+        if quantile < 0. || quantile > 1. {
+            return None;
+        }
+
+        let mut per_conn: Vec<_> = match op {
+            None => &self.overall_latency_us_hist,
+            Some(Op::Ping) => return None,
+            Some(Op::Mget) => &self.mget_latency_us_hist,
+            Some(Op::Mput) => &self.mput_latency_us_hist,
+            Some(Op::Range) => &self.range_latency_us_hist,
+        }
+        .iter()
+        .map(|h| h.value_at_quantile(quantile))
+        .collect();
+        per_conn.sort();
+        if per_conn.is_empty() {
+            None
+        } else {
+            Some(per_conn[per_conn.len() / 2])
+        }
+    }
+
+    /// Given `outdir`, will append to `[outdir]/leaderboard.csv`
+    /// a row representing this `SummaryStats`.
+    ///
+    /// A latency value of 0 indicates an error.
+    pub fn write_leaderboard(&self, outdir: &std::path::Path) -> std::io::Result<()> {
+        use std::io::Write;
+
+        // why 0.999? otherwise, it would be possible to just drop range requests
+        if self.achieved_keys_per_sec < self.offered_keys_per_sec * 0.999 {
+            // don't write anything, but this is not an error
+            return Ok(());
+        }
+
+        let outpath = outdir.join("leaderboard.csv");
+        let mut f = if outpath.try_exists()? {
+            std::fs::File::options().append(true).open(outpath)?
+        } else {
+            let mut f = std::fs::File::create(outpath)?;
+            writeln!(
+                &mut f,
+                "achieved_load_keys_per_sec,latency_p5,latency_p25,latency_p50,latency_p75,latency_p95,latency_p999"
+            )?;
+            f
+        };
+
+        writeln!(
+            &mut f,
+            "{achieved},{p5},{p25},{p50},{p75},{p95},{p999}",
+            achieved = self.achieved_keys_per_sec,
+            p5 = self.latency_quantile_us(None, 0.05).unwrap_or(0),
+            p25 = self.latency_quantile_us(None, 0.25).unwrap_or(0),
+            p50 = self.latency_quantile_us(None, 0.50).unwrap_or(0),
+            p75 = self.latency_quantile_us(None, 0.75).unwrap_or(0),
+            p95 = self.latency_quantile_us(None, 0.95).unwrap_or(0),
+            p999 = self.latency_quantile_us(None, 0.999).unwrap_or(0),
+        )?;
+
+        Ok(())
+    }
+}
+
 impl ExperimentStats {
     /// Summarize the experiment.
     ///
