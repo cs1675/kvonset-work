@@ -125,13 +125,14 @@ impl SummaryStats {
 
         writeln!(
             &mut f,
-            "{achieved},{p5},{p25},{p50},{p75},{p95},{p999}",
+            "{achieved},{p5},{p25},{p50},{p75},{p95},{p99},{p999}",
             achieved = self.achieved_keys_per_sec,
             p5 = self.latency_quantile_us(None, 0.05).unwrap_or(0),
             p25 = self.latency_quantile_us(None, 0.25).unwrap_or(0),
             p50 = self.latency_quantile_us(None, 0.50).unwrap_or(0),
             p75 = self.latency_quantile_us(None, 0.75).unwrap_or(0),
             p95 = self.latency_quantile_us(None, 0.95).unwrap_or(0),
+            p99 = self.latency_quantile_us(None, 0.99).unwrap_or(0),
             p999 = self.latency_quantile_us(None, 0.999).unwrap_or(0),
         )?;
 
