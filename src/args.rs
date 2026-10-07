@@ -12,6 +12,7 @@ use clap::{Parser, ValueEnum};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
+/// CLI arguments for the client.
 #[derive(Parser, Debug, Clone)]
 #[command(about)]
 pub struct KVonsetClientOpt {
@@ -89,6 +90,7 @@ impl KVonsetClientOpt {
     }
 }
 
+/// CLI arguments for the server.
 #[derive(Parser, Debug, Clone)]
 #[command(about)]
 pub struct KVonsetServerOpt {
@@ -110,6 +112,7 @@ pub struct KVonsetServerOpt {
     pub outpath: PathBuf,
 }
 
+/// The server implementation to use.
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Strategy {
     /// Use the traditional send/recv socket API.
