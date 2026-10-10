@@ -118,7 +118,7 @@ impl SummaryStats {
             let mut f = std::fs::File::create(outpath)?;
             writeln!(
                 &mut f,
-                "achieved_load_keys_per_sec,latency_p5,latency_p25,latency_p50,latency_p75,latency_p95,latency_p999"
+                "achieved_load_keys_per_sec,latency_p5,latency_p25,latency_p50,latency_p75,latency_p95,latency_p99,latency_p999"
             )?;
             f
         };
