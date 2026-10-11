@@ -224,7 +224,9 @@ impl ExperimentStats {
         let mut mput_latency_us_hist = Vec::with_capacity(self.conns.len());
         let mut range_latency_us_hist = Vec::with_capacity(self.conns.len());
         for conn in &self.conns {
-            let new_hist = || hdrhistogram::Histogram::<u64>::new(3).expect("3 significant figures is valid");
+            // max of 1_000_000 us = 1 sec.
+            let new_hist =
+                || hdrhistogram::Histogram::<u64>::new_with_max(1_000_000, 3).expect("3 significant figures is valid");
             let (mut overall, mut mget, mut mput, mut range) = (new_hist(), new_hist(), new_hist(), new_hist());
             for s in conn {
                 let RequestState::Summarized {
